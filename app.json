@@ -1,5 +1,6 @@
 {
   "expo": {
+    "scheme": "shopping-list",
     "name": "shopping-list",
     "slug": "shopping-list",
     "version": "1.0.0",
@@ -22,6 +23,9 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-router"
+    ]
   }
 }

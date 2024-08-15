@@ -1,12 +1,13 @@
 import {Link, Stack} from "expo-router";
-import { useColorScheme } from "react-native";
-import { Colors } from "react-native/Libraries/NewAppScreen";
+import {useColorScheme} from "react-native";
+import {Colors} from "react-native/Libraries/NewAppScreen";
 
 export default function Layout() {
     const colorScheme = useColorScheme();
     return (
         <Stack
             screenOptions={{
+                title: "Add Product",
                 headerStyle: {
                     backgroundColor: Colors[colorScheme ?? "light"].tint,
                 },
@@ -18,10 +19,9 @@ export default function Layout() {
             }}
         >
             <Stack.Screen name="index" options={{
-                title: "Budget",
-                headerRight: () => (<Link href={{ pathname: "add-item" }}>Add Item</Link>),
-            }} />
-            { /*<Stack.Screen name="add-item" options={{ title: "Add Item" }} />*/ }
+                title: "Shopping List",
+                headerRight: () => (<Link href={{pathname: "add-item"}}>Add Product</Link>),
+            }}/>
         </Stack>
     );
 }

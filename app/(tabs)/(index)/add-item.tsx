@@ -1,173 +1,199 @@
-import {Button, Keyboard, StyleSheet, Text, TextInput, TouchableWithoutFeedback, View} from "react-native";
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import SelectDropdown from 'react-native-select-dropdown'
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import {ActivityIndicator, Dimensions, StyleSheet, Text, TouchableOpacity, View} from "react-native";
 import React, {useState} from "react";
-import {Item} from "../../../entity/item";
-import CurrencyInput from "react-native-currency-input";
+import PagerView from "react-native-pager-view";
+import BarcodeScanner from "./itemInputs/barcode-scanner";
+import ManualInput from "./itemInputs/manual-input";
+import {searchProduct} from "../../../service/productSercive";
+import {Product} from "../../../entity/product";
+import {faCartPlus, faTag} from "@fortawesome/free-solid-svg-icons";
+import {FontAwesomeIcon} from "@fortawesome/react-native-fontawesome";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import {useNavigation} from '@react-navigation/native';
+
 
 export default function AddItem() {
-    const [selectedCategory, setSelectedCategory] = useState("");
-    const [price, setPrice] = useState(0);
-    const [description, setDescription] = useState('');
-    const emojisWithIcons = [
-        {title: 'food'},
-        {title: 'clothes'}
-    ];
+    const navigation = useNavigation()
+    const [currentPage, setCurrentPage] = useState(0);
+    const [barcode, setBarcode] = useState('');
+    const [product, setProduct] = useState<Product>()
+    const [barcodeScanned, setBarcodeScanned] = useState(false);
+    const [isLoading, setIsLoading] = useState(false)
+    const [isError, setIsError] = useState(false)
+    const [error, setError] = useState('')
 
-    const changeAmount = (amount: string): void => {
-        const number = parseFloat(amount);
-        setPrice(isNaN(number) ? 0 : number);
-
+    const closeDown = () => {
+        setBarcodeScanned(false)
+        setProduct(undefined)
+        setBarcode('')
+        setIsError(false)
+        setError('')
+        navigation.goBack()
     }
-    const addItem = async (): Promise<void> => {
-        if (description !== '' && price !== 0) {
-            const newItem = new Item(selectedCategory, description, price);
-            const currentList = await getList();
-            const updatedList = [...currentList, newItem];
-            await saveList(updatedList);
-        }
+    const addItem = async (product: Product): Promise<void> => {
+        const currentList = await getList();
+        const updatedList = [...currentList, product];
+        await saveList(updatedList);
+        closeDown()
     }
 
-    const getList = async (): Promise<Item[]> => {
+    const getList = async (): Promise<Product[]> => {
         try {
-            const jsonValue = await AsyncStorage.getItem('itemList');
+            const jsonValue = await AsyncStorage.getItem('productList');
             return jsonValue != null ? JSON.parse(jsonValue) : [];
         } catch (e) {
             console.error('Error reading value from AsyncStorage', e);
             return [];
         }
     };
-    const saveList = async (list: Item[]): Promise<void> => {
+    const saveList = async (list: Product[]): Promise<void> => {
         try {
             const jsonValue = JSON.stringify(list);
-            await AsyncStorage.setItem('itemList', jsonValue);
+            await AsyncStorage.setItem('productList', jsonValue);
         } catch (e) {
             console.error('Error saving value to AsyncStorage', e);
         }
     };
+
+    const renderPageIndicator = (totalPages: number) => {
+        let indicators = [];
+        for (let i = 0; i < totalPages; i++) {
+            indicators.push(
+                <View key={i} style={[styles.dot, currentPage === i && styles.activeDot]}/>
+            );
+        }
+        return <View style={styles.indicatorContainer}>{indicators}</View>;
+    };
+
+    function search(barcodeInput: string) {
+        setBarcodeScanned(true)
+        setIsLoading(true)
+        searchProduct(barcodeInput).then((result) => {
+            if (result.status === "failure") {
+                setIsError(true)
+                setError(result.message)
+                setIsLoading(false)
+            } else {
+                setProduct(result.data)
+                setIsLoading(false)
+            }
+        })
+    }
+
     return (
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={styles.container}>
-                <SelectDropdown
-                    data={emojisWithIcons}
-                    onSelect={(selectedItem) => {
-                        setSelectedCategory(selectedItem.title);
-                    }}
-                    renderButton={(selectedItem, isOpened) => {
-                        return (
-                            <View style={styles.dropdownButtonStyle}>
-                                <Text style={styles.dropdownButtonTxtStyle}>
-                                    {(selectedItem && selectedItem.title) || 'Category'}
-                                </Text>
-                                <Icon name={isOpened ? 'chevron-up' : 'chevron-down'}
-                                      style={styles.dropdownButtonArrowStyle}/>
-                            </View>
-                        );
-                    }}
-                    renderItem={(item, index, isSelected) => {
-                        return (
-                            <View
-                                style={{...styles.dropdownItemStyle, ...(isSelected && {backgroundColor: '#D2D9DF'})}}>
-                                <Text style={styles.dropdownItemTxtStyle}>{item.title}</Text>
-                            </View>
-                        );
-                    }}
-                    showsVerticalScrollIndicator={false}
-                    dropdownStyle={styles.dropdownMenuStyle}
-                />
-                <TextInput
-                    style={styles.input}
-                    onChangeText={setDescription}
-                    value={description}
-                    placeholder="description"
-                    keyboardType="default"
-                />
-                <CurrencyInput
-                    placeholder={"Price"}
-                    style={styles.input}
-                    value={price}
-                    onChangeValue={value => value != null?setPrice(value):setPrice(0)}
-                    suffix={" CHF"}
-                    delimiter="."
-                    separator="'"
-                    precision={2}
-                    minValue={0}
-                />
-                <Button
-                    onPress={addItem}
-                    title="Save Item"
-                    color="#841584"
-                    accessibilityLabel="Learn more about this purple button"
-                />
-            </View>
-        </TouchableWithoutFeedback>
-    );
+        <View style={styles.container}>
+            {isLoading &&
+                <View style={styles.loading}>
+                    <ActivityIndicator size="large"/>
+                </View>
+            }
+            {isError &&
+                <View>
+                    <Text>{error}</Text>
+                </View>
+            }
+            {barcodeScanned && !isLoading && !isError &&
+                <View style={styles.product}>
+                    <View style={styles.productText}>
+                        <FontAwesomeIcon style={styles.icon} icon={faTag}/>
+                        <Text style={styles.text}>{product?.description}</Text>
+                    </View>
+                    <TouchableOpacity style={styles.button} onPress={() => {
+                        addItem(product!)
+                    }}>
+                        <FontAwesomeIcon icon={faCartPlus} size={18} color="#fff"/>
+
+                        <Text style={styles.buttonText}>Add to Cart</Text>
+                    </TouchableOpacity>
+                </View>
+            }
+            {!barcodeScanned && !isLoading && !isError &&
+                <>
+                    <PagerView style={styles.container} initialPage={0}
+                               onPageSelected={e => setCurrentPage(e.nativeEvent.position)}>
+                        < View style={styles.page} key="1">
+                            <BarcodeScanner barcode={barcode} setBarcode={setBarcode} search={search}/>
+                        </View>
+                        <View style={styles.page} key="2">
+                            <ManualInput barcode={barcode} setBarcode={setBarcode} search={search}/>
+                        </View>
+                    </PagerView>
+
+                    {
+                        renderPageIndicator(2)
+                    }
+                </>
+            }
+        </View>
+    )
 }
+
 const styles = StyleSheet.create({
     container: {
+        width: Dimensions.get('window').width,
         flex: 1,
-        padding: 20,
-        backgroundColor: '#fff',
     },
-    dropdownButtonStyle: {
+    page: {
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    indicatorContainer: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 10,
+    },
+    dot: {
+        height: 10,
+        width: 10,
+        borderRadius: 5,
+        backgroundColor: '#ddd',
+        margin: 5,
+    },
+    activeDot: {
+        backgroundColor: '#000',
+    },
+    loading: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    product: {
+        width: '94%',
         margin: 10,
-        width: '95%',
-        height: 50,
+        padding: 16,
+        marginVertical: 10,
         backgroundColor: '#fff',
-        borderRadius: 12,
+        borderRadius: 10,
+        shadowColor: '#000',
+        shadowOffset: {width: 0, height: 2},
+        shadowOpacity: 0.1,
+        shadowRadius: 5,
+        elevation: 3,
+    },
+    productText: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 20, // Space between the productText and button
+    },
+    icon: {
+        marginRight: 10, // Space between the icon and the text
+    },
+    text: {
+        fontSize: 18,
+        fontWeight: 'bold',
+    },
+    button: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: 20,
-        borderBottomWidth: 1,
-        borderBottomColor: '#ddd',
+        backgroundColor: '#007AFF',
+        paddingVertical: 12,
+        borderRadius: 10,
+        width: '100%', // Full width of the container
     },
-    dropdownButtonTxtStyle: {
-        flex: 1,
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#666',
-    },
-    dropdownButtonArrowStyle: {
-        fontSize: 30,
-        color: '#666',
-    },
-    dropdownMenuStyle: {
-        margin: 12,
-        backgroundColor: '#fff',
-        borderRadius: 8,
-    },
-    dropdownItemStyle: {
-        width: '95%',
-        flexDirection: 'row',
-        paddingHorizontal: 20,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingVertical: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: '#ddd',
-    },
-    dropdownItemTxtStyle: {
-        flex: 1,
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#666',
-    },
-    dropdownItemIconStyle: {
-        fontSize: 30,
-        marginRight: 10,
-        color: '#666',
-    },
-    input: {
-        height: 50,
-        margin: 12,
-        borderWidth: 1,
-        borderColor: '#ddd',
-        borderRadius: 12,
-        padding: 15,
-        fontSize: 18,
-        color: '#666',
-        backgroundColor: '#fff',
+    buttonText: {
+        color: '#fff',
+        fontSize: 16,
+        marginLeft: 8, // Space between the icon and the button text
     },
 });

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 export default function StoreFinder() {
     return (
         <View style={styles.container}>
-            <Text>StoreFinder</Text>
+            <Text>Implementation in the next Update!</Text>
         </View>
     );
 }
